@@ -52,25 +52,27 @@ for _, row in source1.iterrows():
     s1_id = row["clean_entity_id"]
     country = row["clean_country"]
     s1_name = row["clean_business_name"]
+    s1_address = row["clean_business_address"]
 
     s1_tokens = get_name_tokens(s1_name)
+    s1_address_tokens = get_name_tokens(s1_address)
 
 
     # Same-country blocking
 
-    candidates_s2 = source2[
+    country_s2 = source2[
         source2["clean_country"] == country
     ]
 
-    candidates_s3 = source3[
+    country_s3 = source3[
         source3["clean_country"] == country
     ]
 
 
     # Name-token blocking
 
-    candidates_s2 = candidates_s2[
-        candidates_s2["clean_business_name"].apply(
+    name_candidates_s2 = country_s2[
+        country_s2["clean_business_name"].apply(
             lambda name: len(
                 s1_tokens.intersection(
                     get_name_tokens(name)
@@ -79,11 +81,34 @@ for _, row in source1.iterrows():
         )
     ]
 
-    candidates_s3 = candidates_s3[
-        candidates_s3["clean_business_name"].apply(
+    name_candidates_s3 = country_s3[
+        country_s3["clean_business_name"].apply(
             lambda name: len(
                 s1_tokens.intersection(
                     get_name_tokens(name)
+                )
+            ) > 0
+        )
+    ]
+
+
+    # Address-token blocking
+
+    address_candidates_s2 = country_s2[
+        country_s2["clean_business_address"].apply(
+            lambda address: len(
+                s1_address_tokens.intersection(
+                    get_name_tokens(address)
+                )
+            ) > 0
+        )
+    ]
+
+    address_candidates_s3 = country_s3[
+        country_s3["clean_business_address"].apply(
+            lambda address: len(
+                s1_address_tokens.intersection(
+                    get_name_tokens(address)
                 )
             ) > 0
         )
@@ -91,6 +116,9 @@ for _, row in source1.iterrows():
 
 
     # Combine candidates
+
+    candidates_s2 = pd.concat([name_candidates_s2, address_candidates_s2]).drop_duplicates()
+    candidates_s3 = pd.concat([name_candidates_s3, address_candidates_s3]).drop_duplicates()
 
     candidate_ids = set(
         candidates_s2["clean_entity_id"].tolist()
