@@ -45,8 +45,28 @@ print("\n====================================")
 print("3. EXTRACTING FEATURES FOR TRAINING")
 print("====================================")
 
+import re
+
 def string_similarity(s1, s2):
     return difflib.SequenceMatcher(None, str(s1), str(s2)).ratio()
+
+def jaccard_sim(s1, s2):
+    set1 = set(str(s1).lower().split())
+    set2 = set(str(s2).lower().split())
+    if not set1 and not set2:
+        return 1.0
+    if not set1 or not set2:
+        return 0.0
+    return len(set1.intersection(set2)) / len(set1.union(set2))
+
+def get_num_agreement(a1, a2):
+    nums1 = set(re.findall(r'\b\d+\b', str(a1)))
+    nums2 = set(re.findall(r'\b\d+\b', str(a2)))
+    if not nums1 and not nums2:
+        return 1.0
+    if not nums1 or not nums2:
+        return 0.5
+    return 1.0 if len(nums1.intersection(nums2)) > 0 else 0.0
 
 s2_dict = train_s2.set_index("clean_entity_id").to_dict(orient="index")
 s3_dict = train_s3.set_index("clean_entity_id").to_dict(orient="index")
@@ -65,9 +85,24 @@ for _, row in train_s1.iterrows():
     for c_id in train_candidates.get(s1_id, []):
         c_data = get_entity_data(c_id, s2_dict, s3_dict)
         if c_data:
-            name_sim = string_similarity(s1_name, c_data["clean_business_name"])
-            addr_sim = string_similarity(s1_address, c_data["clean_business_address"])
-            features.append({"s1_id": s1_id, "c_id": c_id, "name_sim": name_sim, "addr_sim": addr_sim})
+            c_name = c_data["clean_business_name"]
+            c_addr = c_data["clean_business_address"]
+            
+            name_sim = string_similarity(s1_name, c_name)
+            addr_sim = string_similarity(s1_address, c_addr)
+            name_jac = jaccard_sim(s1_name, c_name)
+            addr_jac = jaccard_sim(s1_address, c_addr)
+            num_agree = get_num_agreement(s1_address, c_addr)
+            
+            features.append({
+                "s1_id": s1_id, 
+                "c_id": c_id, 
+                "name_sim": name_sim, 
+                "addr_sim": addr_sim,
+                "name_jac": name_jac,
+                "addr_jac": addr_jac,
+                "num_agree": num_agree
+            })
 
 features_df = pd.DataFrame(features)
 
@@ -96,11 +131,21 @@ best_macro_p, best_macro_r = 0, 0
 if not features_df.empty:
     all_s1_ids = train_s1["clean_entity_id"].tolist()
     
-    for nw in [0.6, 0.7, 0.8, 0.9]:
-        aw = 1.0 - nw
-        scores = features_df["name_sim"] * nw + features_df["addr_sim"] * aw
+    weight_combinations = [
+        {"name_seq": 0.4, "addr_seq": 0.2, "name_jac": 0.2, "addr_jac": 0.1, "num_agree": 0.1},
+        {"name_seq": 0.5, "addr_seq": 0.1, "name_jac": 0.2, "addr_jac": 0.1, "num_agree": 0.1},
+        {"name_seq": 0.3, "addr_seq": 0.2, "name_jac": 0.3, "addr_jac": 0.1, "num_agree": 0.1},
+        {"name_seq": 0.4, "addr_seq": 0.1, "name_jac": 0.3, "addr_jac": 0.05, "num_agree": 0.15},
+    ]
+    
+    for w in weight_combinations:
+        scores = (features_df["name_sim"] * w["name_seq"] + 
+                  features_df["addr_sim"] * w["addr_seq"] +
+                  features_df["name_jac"] * w["name_jac"] +
+                  features_df["addr_jac"] * w["addr_jac"] +
+                  features_df["num_agree"] * w["num_agree"])
         
-        for th in [0.70, 0.75, 0.80, 0.85, 0.90, 0.95]:
+        for th in [0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95]:
             # Generate predictions per source 1 entity
             predictions = {s1_id: set() for s1_id in all_s1_ids}
             predicted_df = features_df[scores >= th]
@@ -138,14 +183,15 @@ if not features_df.empty:
             
             if macro_f05 > best_f05:
                 best_f05 = macro_f05
-                best_params = {"name_weight": nw, "addr_weight": aw, "threshold": th}
+                best_params = {"weights": w, "threshold": th}
                 best_macro_p = macro_p
                 best_macro_r = macro_r
 
-print(f"Chosen Rule: Name Weight = {best_params.get('name_weight')}, Address Weight = {best_params.get('addr_weight')}, Threshold = {best_params.get('threshold')}")
-print(f"Macro Training Precision: {best_macro_p:.4f}")
-print(f"Macro Training Recall:    {best_macro_r:.4f}")
-print(f"Macro Training F0.5:      {best_f05:.4f}")
+print(f"1. Selected feature weights: {best_params.get('weights')}")
+print(f"2. Selected threshold: {best_params.get('threshold')}")
+print(f"3. Macro Training Precision: {best_macro_p:.4f}")
+print(f"4. Macro Training Recall:    {best_macro_r:.4f}")
+print(f"5. Macro Training F0.5:      {best_f05:.4f}")
 
 print("\n====================================")
 print("5. APPLYING RULE TO TEST DATA")
@@ -170,9 +216,8 @@ for _, row in test_candidates_df.iterrows():
         test_candidates[s1_id] = []
 
 test_results = []
-nw = best_params.get("name_weight", 0.7)
-aw = best_params.get("addr_weight", 0.3)
-th = best_params.get("threshold", 0.8)
+w = best_params.get("weights", {"name_seq": 0.4, "addr_seq": 0.2, "name_jac": 0.2, "addr_jac": 0.1, "num_agree": 0.1})
+th = best_params.get("threshold", 0.70)
 total_final_matches = 0
 empty_matches = 0
 
@@ -187,10 +232,21 @@ for _, row in test_s1.iterrows():
     for c_id in cand_ids:
         c_data = get_entity_data(c_id, test_s2_dict, test_s3_dict)
         if c_data:
-            name_sim = string_similarity(s1_name, c_data["clean_business_name"])
-            addr_sim = string_similarity(s1_address, c_data["clean_business_address"])
+            c_name = c_data["clean_business_name"]
+            c_addr = c_data["clean_business_address"]
             
-            score = name_sim * nw + addr_sim * aw
+            name_sim = string_similarity(s1_name, c_name)
+            addr_sim = string_similarity(s1_address, c_addr)
+            name_jac = jaccard_sim(s1_name, c_name)
+            addr_jac = jaccard_sim(s1_address, c_addr)
+            num_agree = get_num_agreement(s1_address, c_addr)
+            
+            score = (name_sim * w["name_seq"] + 
+                     addr_sim * w["addr_seq"] +
+                     name_jac * w["name_jac"] +
+                     addr_jac * w["addr_jac"] +
+                     num_agree * w["num_agree"])
+                     
             if score >= th:
                 matched.append(c_id)
                 total_final_matches += 1
@@ -204,8 +260,8 @@ for _, row in test_s1.iterrows():
     })
 
 print(f"Number of test Source 1 entities: {len(test_s1)}")
-print(f"Number of final matched pairs: {total_final_matches}")
-print(f"Number of Source 1 entities with no matches: {empty_matches}")
+print(f"6. Number of final test matches: {total_final_matches}")
+print(f"7. Number of test Source1 entities with no matches: {empty_matches}")
 
 results_df = pd.DataFrame(test_results)
 results_df.to_csv("output/matching_results.tsv", sep="\t", index=False)
