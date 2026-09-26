@@ -1,0 +1,2 @@
+entity_id	business_name	business_address	country	clean_entity_id	clean_business_name	clean_business_address	clean_country	clean_full_text
+S2-90005	Green Leaf Cafe Ltd	5 Rue de Paris, 75001 Paris	France	S2-90005	green leaf cafe ltd	5 rue de paris 75001 paris	france	green leaf cafe ltd 5 rue de paris 75001 paris france

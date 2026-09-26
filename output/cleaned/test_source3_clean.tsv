@@ -1,0 +1,2 @@
+entity_id	business_name	business_address	country	clean_entity_id	clean_business_name	clean_business_address	clean_country	clean_full_text
+S3-90010	Unrelated Boulangerie	10 Rue Lafayette, Paris	France	S3-90010	unrelated boulangerie	10 rue lafayette paris	france	unrelated boulangerie 10 rue lafayette paris france

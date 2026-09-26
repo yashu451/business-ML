@@ -1,0 +1,4 @@
+entity_id	business_name	business_address	country	clean_entity_id	clean_business_name	clean_business_address	clean_country	clean_full_text
+S3-00812	ABC Restaurant Pvt Ltd	Near MG Road, Mysore	India	S3-00812	abc restaurant pvt ltd	near mg road mysore	india	abc restaurant pvt ltd near mg road mysore india
+S3-00813	XYZ Hotel	45, Park Street, Kolkata 700016	India	S3-00813	xyz hotel	45 park street kolkata 700016	india	xyz hotel 45 park street kolkata 700016 india
+S3-00999	Smith & Sons Bakery Co	100 Main Street, Austin TX	US	S3-00999	smith and sons bakery co	100 main street austin tx	us	smith and sons bakery co 100 main street austin tx us

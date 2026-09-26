@@ -1,0 +1,6 @@
+entity_id	business_name	business_address	country	clean_entity_id	clean_business_name	clean_business_address	clean_country	clean_full_text
+S1-00001	ABC Restaurant	12 MG Road, Mysore	India	S1-00001	abc restaurant	12 mg road mysore	india	abc restaurant 12 mg road mysore india
+S1-00002	XYZ Hotel Pvt Ltd	45 Park Street, Kolkata	India	S1-00002	xyz hotel pvt ltd	45 park street kolkata	india	xyz hotel pvt ltd 45 park street kolkata india
+S1-00003	Kumar Stores	7 Gandhi Nagar, Bengaluru	India	S1-00003	kumar stores	7 gandhi nagar bengaluru	india	kumar stores 7 gandhi nagar bengaluru india
+S1-00004	Smith & Sons Bakery	100 Main St, Austin	US	S1-00004	smith and sons bakery	100 main street austin	us	smith and sons bakery 100 main street austin us
+S1-00005	Lonely Cafe	9 Oak Ave, Denver	US	S1-00005	lonely cafe	9 oak avenue denver	us	lonely cafe 9 oak avenue denver us

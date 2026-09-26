@@ -1,0 +1,6 @@
+entity_id	business_name	business_address	country	clean_entity_id	clean_business_name	clean_business_address	clean_country	clean_full_text
+S2-00047	A.B.C. Rest.	12 MG Rd, Mysuru	India	S2-00047	abc restaurant	12 mg road mysuru	india	abc restaurant 12 mg road mysuru india
+S2-00048	XYZ Hotel Limited	45 Park St, Kolkata	India	S2-00048	xyz hotel ltd	45 park street kolkata	india	xyz hotel ltd 45 park street kolkata india
+S2-00049	Kumar General Stores	Near Gandhi Nagar, Bengaluru	India	S2-00049	kumar general stores	near gandhi nagar bengaluru	india	kumar general stores near gandhi nagar bengaluru india
+S2-00050	Smith and Sons Bakery Inc	100 Main Street, Austin	US	S2-00050	smith and sons bakery inc	100 main street austin	us	smith and sons bakery inc 100 main street austin us
+S2-00051	Unrelated Pizza Place	200 Elm St, Miami	US	S2-00051	unrelated pizza place	200 elm street miami	us	unrelated pizza place 200 elm street miami us
