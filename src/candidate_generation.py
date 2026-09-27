@@ -1,166 +1,116 @@
 import pandas as pd
-
-# ============================================================
-# 1. LOAD CLEANED TEST DATA (Moved to main block below)
-# ============================================================
-
-# ============================================================
-# 2. FUNCTION TO CHECK TOKEN OVERLAP
-# ============================================================
+from collections import defaultdict
 
 def has_token_overlap(text1, text2):
-
     tokens1 = set(str(text1).lower().split())
     tokens2 = set(str(text2).lower().split())
-
     return len(tokens1.intersection(tokens2)) > 0
 
+def get_tokens(text):
+    return set(str(text).lower().split())
 
-# ============================================================
-# 3. STORE CANDIDATES
-# ============================================================
+def build_indices(source2, source3):
+    name_index = defaultdict(lambda: defaultdict(set))
+    address_index = defaultdict(lambda: defaultdict(set))
+    
+    name_df = defaultdict(int)
+    address_df = defaultdict(int)
+    total_records = 0
+    
+    for src in [source2, source3]:
+        for _, row in src.iterrows():
+            total_records += 1
+            country = row["clean_country"]
+            c_id = row["clean_entity_id"]
+            
+            n_tokens = get_tokens(row["clean_business_name"])
+            a_tokens = get_tokens(row["clean_business_address"])
+            
+            for t in n_tokens:
+                name_index[country][t].add(c_id)
+                name_df[t] += 1
+                
+            for t in a_tokens:
+                address_index[country][t].add(c_id)
+                address_df[t] += 1
 
-candidate_results = []
+    max_freq = max(100, total_records * 0.05)
+    
+    for country in list(name_index.keys()):
+        for t in list(name_index[country].keys()):
+            if name_df[t] > max_freq:
+                del name_index[country][t]
+                
+    for country in list(address_index.keys()):
+        for t in list(address_index[country].keys()):
+            if address_df[t] > max_freq:
+                del address_index[country][t]
+                
+    return name_index, address_index
 
-
-# ============================================================
-# 4. GENERATE CANDIDATES FUNCTION
-# ============================================================
-
-def generate_candidates(source1, source2, source3):
+def generate_candidates(source1, source2, source3, output_file=None):
+    name_index, address_index = build_indices(source2, source3)
+    
+    if output_file:
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write("source1_entity_id\tcandidate_entity_ids\n")
+            
     candidate_results = []
+    total_s1 = len(source1)
     
-    for _, row in source1.iterrows():
-    
+    for i, (_, row) in enumerate(source1.iterrows()):
+        if (i + 1) % 100000 == 0:
+            print(f"Processed {i + 1}/{total_s1} Source1 records...")
+            
         s1_id = row["clean_entity_id"]
         country = row["clean_country"]
-    
-        s1_name = row["clean_business_name"]
-        s1_address = row["clean_business_address"]
-    
-        # --------------------------------------------------------
-        # BLOCKING RULE 1: SAME COUNTRY
-        # --------------------------------------------------------
-    
-        country_s2 = source2[
-            source2["clean_country"] == country
-        ]
-    
-        country_s3 = source3[
-            source3["clean_country"] == country
-        ]
-    
-        # --------------------------------------------------------
-        # BLOCKING RULE 2A: BUSINESS NAME TOKEN OVERLAP
-        # --------------------------------------------------------
-    
-        name_candidates_s2 = country_s2[
-            country_s2["clean_business_name"].apply(
-                lambda name: has_token_overlap(s1_name, name)
-            )
-        ]
-    
-        name_candidates_s3 = country_s3[
-            country_s3["clean_business_name"].apply(
-                lambda name: has_token_overlap(s1_name, name)
-            )
-        ]
-    
-        # --------------------------------------------------------
-        # BLOCKING RULE 2B: BUSINESS ADDRESS TOKEN OVERLAP
-        # --------------------------------------------------------
-    
-        address_candidates_s2 = country_s2[
-            country_s2["clean_business_address"].apply(
-                lambda address: has_token_overlap(s1_address, address)
-            )
-        ]
-    
-        address_candidates_s3 = country_s3[
-            country_s3["clean_business_address"].apply(
-                lambda address: has_token_overlap(s1_address, address)
-            )
-        ]
-    
-        # --------------------------------------------------------
-        # COMBINE NAME + ADDRESS CANDIDATES
-        # --------------------------------------------------------
-    
-        candidates_s2 = pd.concat(
-            [
-                name_candidates_s2,
-                address_candidates_s2
-            ]
-        ).drop_duplicates()
-    
-        candidates_s3 = pd.concat(
-            [
-                name_candidates_s3,
-                address_candidates_s3
-            ]
-        ).drop_duplicates()
-    
-        # --------------------------------------------------------
-        # COMBINE SOURCE 2 + SOURCE 3 IDs
-        # --------------------------------------------------------
-    
-        candidate_ids = (
-            candidates_s2["clean_entity_id"].tolist()
-            +
-            candidates_s3["clean_entity_id"].tolist()
-        )
-    
-        # Remove duplicate IDs
-        candidate_ids = sorted(set(candidate_ids))
-    
-        # --------------------------------------------------------
-        # SAVE RESULT FOR THIS SOURCE 1 ENTITY
-        # --------------------------------------------------------
-    
-        candidate_results.append({
-            "source1_entity_id": s1_id,
-            "candidate_entity_ids": ",".join(candidate_ids)
-        })
         
-    return pd.DataFrame(
-        candidate_results,
-        columns=[
-            "source1_entity_id",
-            "candidate_entity_ids"
-        ]
-    )
+        n_tokens = get_tokens(row["clean_business_name"])
+        a_tokens = get_tokens(row["clean_business_address"])
+        
+        candidates = set()
+        
+        if country in name_index:
+            c_name_idx = name_index[country]
+            for t in n_tokens:
+                if t in c_name_idx:
+                    candidates.update(c_name_idx[t])
+                    
+        if country in address_index:
+            c_addr_idx = address_index[country]
+            for t in a_tokens:
+                if t in c_addr_idx:
+                    candidates.update(c_addr_idx[t])
+                    
+        sorted_candidates = sorted(list(candidates))
+        cands_str = ",".join(sorted_candidates)
+        
+        if output_file:
+            with open(output_file, "a", encoding="utf-8") as f:
+                f.write(f"{s1_id}\t{cands_str}\n")
+        else:
+            candidate_results.append({
+                "source1_entity_id": s1_id,
+                "candidate_entity_ids": cands_str
+            })
+            
+    if not output_file:
+        return pd.DataFrame(
+            candidate_results,
+            columns=["source1_entity_id", "candidate_entity_ids"]
+        )
+    return None
 
 if __name__ == "__main__":
-    # ============================================================
-    # 1. LOAD CLEANED TEST DATA
-    # ============================================================
-    source1 = pd.read_csv("output/cleaned/test_source1_clean.tsv", sep="\t")
-    source2 = pd.read_csv("output/cleaned/test_source2_clean.tsv", sep="\t")
-    source3 = pd.read_csv("output/cleaned/test_source3_clean.tsv", sep="\t")
+    usecols = ["clean_entity_id", "clean_business_name", "clean_business_address", "clean_country"]
+    source1 = pd.read_csv("output/cleaned/test_source1_clean.tsv", sep="\t", usecols=usecols)
+    source2 = pd.read_csv("output/cleaned/test_source2_clean.tsv", sep="\t", usecols=usecols)
+    source3 = pd.read_csv("output/cleaned/test_source3_clean.tsv", sep="\t", usecols=usecols)
     
     print("Source 1:", len(source1))
     print("Source 2:", len(source2))
     print("Source 3:", len(source3))
 
-    # ============================================================
-    # 5. CREATE OUTPUT DATAFRAME
-    # ============================================================
+    generate_candidates(source1, source2, source3, output_file="output/candidate_pairs.tsv")
     
-    candidate_df = generate_candidates(source1, source2, source3)
-    
-    # ============================================================
-    # 6. SAVE FINAL CANDIDATE FILE
-    # ============================================================
-    
-    candidate_df.to_csv(
-        "output/candidate_pairs.tsv",
-        sep="\t",
-        index=False
-    )
-    
-    # ============================================================
-    # 7. DISPLAY RESULTS
-    # ============================================================
-    
-    print("\nCandidate pairs saved successfully!\n")
-    print(candidate_df)
+    print("\nCandidate pairs saved successfully to output/candidate_pairs.tsv!\n")
